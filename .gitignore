@@ -18,3 +18,5 @@ src-tauri/license.html
 
 src-tauri/gen/*
 src-tauri/gen/schemas
+# Local agent workspace (memory, skills) - not part of the project
+.workbuddy

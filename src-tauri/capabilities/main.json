@@ -23,6 +23,15 @@
     "fs:allow-write",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
+    "fs:allow-mkdir",
+    "fs:allow-write-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        "$APPLOCALDATA/attachments",
+        "$APPLOCALDATA/attachments/*"
+      ]
+    },
     "window-state:default",
     "opener:default",
     {

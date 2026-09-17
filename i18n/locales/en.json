@@ -144,6 +144,16 @@
       "help": "Help",
       "settings": "Settings"
     },
+    "imagePreview": {
+      "title": "Image preview",
+      "close": "Close (Esc)",
+      "zoomIn": "Zoom in (+)",
+      "zoomOut": "Zoom out (-)",
+      "fit": "Fit to window (0)",
+      "loading": "Loading image...",
+      "loadFailed": "This image could not be loaded. It may have been removed.",
+      "hint": "Double click to zoom · Scroll to zoom · Drag to pan · Esc to close"
+    },
     "kanban": {
       "column": {
         "addCard": "Add card",
@@ -158,6 +168,22 @@
         "deleteAllColumnCardsAction": "Delete all cards",
         "deleteAllColumnCardsConfirmation": "Are you sure you want to delete all the cards in column '{columnName}'? This action is irreversible.",
         "deleteAllColumnCardsConfirmationTitle": "Delete all cards in this column"
+      },
+      "descriptionEditor": {
+        "imageHint": "Paste an image to insert it. Supported formats: {formats} - up to {size} per image and {count} images per description. Double click an image to preview it.",
+        "insertImage": "Insert image",
+        "uploading": "Uploading image ({count})...",
+        "errors": {
+          "unsupportedFormat": "'{file}' is not a supported image format. Supported formats: {formats}",
+          "unsupportedPastedImage": "The pasted image format is not supported. Supported formats: {formats}",
+          "tooLarge": "'{file}' is too large. The maximum size per image is {limit}.",
+          "tooManyPerPaste": "Only {limit} images can be pasted at once.",
+          "tooManyPerDescription": "A description can contain at most {limit} images.",
+          "uploadFailed": "'{file}' could not be read or uploaded. Please try again or use 'Insert image'.",
+          "unreadableClipboardImage": "The image in your clipboard cannot be read directly. Use 'Insert image' to pick the file instead.",
+          "localFile": "Pasting a file path is not supported. Use 'Insert image' to select the file.",
+          "remoteImage": "Images from a website cannot be pasted directly. Save the image to your device first."
+        }
       },
       "searchBar": {
         "placeholder": "Search for cards..."
