@@ -4,110 +4,93 @@
 
 name: "Create Release"
 
+# 两种触发方式：
+#   1. 推 tag（app-v0.8.2）—— 版本号取自 src-tauri/tauri.conf.json
+#   2. 手动在 Actions 页面点 "Run workflow"（不用先打 tag，action 会自己建）
 on:
   push:
-    branches:
-      - release
+    tags:
+      - "app-v*"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
-  publish-kanri:
-    permissions:
-      contents: write
+  publish-macos:
+    name: macOS ${{ matrix.label }}
+    runs-on: macos-latest
     strategy:
       fail-fast: false
+      # 两个 job 都往同一个 release 追加资产，串行执行避免并发创建 release 时撞车
+      max-parallel: 1
       matrix:
         include:
-          - platform: "macos-latest" # for Arm based macs (M1 and above).
+          - label: "Apple Silicon (aarch64)"
             args: "--target aarch64-apple-darwin"
-          - platform: "macos-latest" # for Intel based macs.
+          - label: "Intel (x86_64)"
             args: "--target x86_64-apple-darwin"
-          - platform: "ubuntu-22.04" # for Tauri v1 you could replace this with ubuntu-20.04.
-            args: ""
-          - platform: "windows-latest"
-            args: ""
 
-    runs-on: ${{ matrix.platform }}
-    outputs:
-      upload_url: ${{ steps.release.outputs.releaseUploadUrl }}
     steps:
       - uses: actions/checkout@v5
+
+      # 版本号从 package.json 的 packageManager 字段读（pnpm@11.9.0），不要另外写 version，
+      # 否则 action 会报 "Multiple versions of pnpm specified"
+      - name: setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
 
       - name: setup node
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: 22
+          cache: pnpm
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-        # webkitgtk 4.0 is for Tauri v1 - webkitgtk 4.1 is for Tauri v2.
-        # You can remove the one that doesn't apply to your app to speed up the workflow a bit.
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.args }}
 
       - name: install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      # tauri.conf.json 里没有 beforeBuildCommand，前端必须在这里先构建好
       - name: Build frontend
         run: pnpm generate
 
-      - name: Override linuxdeploy version (potential Linux fix)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          # Pin linuxdeploy version to prevent @tauri-apps/cli-linux-x64-gnu from pulling in an outdated version
-          TAURI_TOOLKIT_PATH="${XDG_CACHE_HOME:-$HOME/.cache}/tauri"
-          mkdir -p "$TAURI_TOOLKIT_PATH"
-          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20250213-2/linuxdeploy-x86_64.AppImage -O "$TAURI_TOOLKIT_PATH/linuxdeploy-x86_64.AppImage"
-          chmod +x "$TAURI_TOOLKIT_PATH/linuxdeploy-x86_64.AppImage"
-
       - uses: tauri-apps/tauri-action@v0
-        id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 没有 Apple 开发者证书，用 ad-hoc 签名（"-"）——Apple Silicon 上不签名根本无法启动
+          APPLE_SIGNING_IDENTITY: "-"
         with:
-          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
+          tagName: app-v__VERSION__
           releaseName: "Kanri v__VERSION__"
-          releaseBody: "See the assets to download this version and install."
-          releaseDraft: true
+          releaseBody: |
+            macOS 版本：Apple Silicon（M 系列）与 Intel 各一个 `.dmg`。
+
+            **未做公证（unsigned + ad-hoc 签名）**，首次打开会被 Gatekeeper 拦。
+
+            如果提示"已损坏，无法打开"，在终端执行：
+
+            ```bash
+            xattr -dr com.apple.quarantine /Applications/kanri.app
+            ```
+
+            或用 `右键 → 打开` 绕过一次。
+
+            > 安装前请退出正在运行的 Kanri。
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
-
-  publish-kanri-arm:
-    needs: publish-kanri
-    permissions:
-      contents: write
-    strategy:
-      matrix:
-        arch: [arm64, armv7]
-
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - name: Install dependencies
-        run: pnpm install
-      - name: Build for ${{ matrix.arch }}
-        run: pnpm run init:${{matrix.arch}} && pnpm run build:${{matrix.arch}}
-
-      - name: Output Tauri release url
-        run: echo ${{ needs.publish-kanri.outputs.upload_url }}
-
-      - name: Upload Multiple Release Assets
-        uses: NBTX/upload-release-assets@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.publish-kanri.outputs.upload_url }}
-          targets: ./src-tauri/target/*/release/bundle/deb/*.deb
